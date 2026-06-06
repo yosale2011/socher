@@ -241,6 +241,8 @@ begin
   GetPressedKey := PressedKey;
 end;
 
+{ Note: there is no default case - if CountryName matches no country,
+  the result is left undefined (as in the original) }
 function CountryNameToIndex(CountryName: TCountryName): integer;
 begin
   if CountryName = TurkeyName then
@@ -325,6 +327,8 @@ begin
   repeat
   begin
     CurrentNumber := 0;
+    { Original quirk: loop variable and upper bound are the same variable; this clears
+      the previously entered digits with spaces before re-prompting }
     for DigitCount := 1 to DigitCount do
       Write(' ');
     ShouldReturn := False;
@@ -981,7 +985,7 @@ var
             DidEventHappen := False;
         end;
         19..20: begin
-          if Day < 6 then
+          if (Day < 6) and AllowCrewStrike then
           begin
             PutPic(CrewScreen^, 0, 199);
             GotoXY(7, 3);
@@ -2380,6 +2384,7 @@ begin
   StormWindow := LoadWinFile('storm');
   ShoalWindow := LoadWinFile('sirton');
   StrikeWindow := LoadWinFile('strike');
+  { FogWindow is loaded but never displayed - the fog travel event uses ShowMessage only }
   FogWindow := LoadWinFile('arafel');
   BankWindow := LoadWinFile('bank');
   BuyTurkeyWindow := LoadWinFile('buyturk');
@@ -2440,11 +2445,16 @@ begin
   CurrentCountryName := IsraelName;
   StormCountryName := ' ';
   ShipDamage := 0;
-  ClosedRepairDay := Random(7) + 1;
+  if AllowClosedShipyard then
+    ClosedRepairDay := Random(7) + 1
+  else
+    ClosedRepairDay := 0;
   ClosedBankDay := Random(7) + 1;
   Cargo[Copper] := 0;
   Cargo[Olives] := 0;
   Cargo[Wheat] := 0;
+  { Original bug: the random ClosedBankDay set above is immediately overwritten with 0,
+    so the bank's "closed day" mechanic never triggers (ClosedRepairDay still works) }
   ClosedBankDay := 0;
   Money := 5000;
   LastDayStartEvent := 0;
@@ -2573,8 +2583,45 @@ begin
   end;
   WaitForKey;
 end;
+
+{ POC: a custom screen added for the port build. Not part of the original game,
+  so it intentionally breaks the matching-binary validation. }
+procedure ShowCustomScreen;
 begin
+  GraphColorMode;
+  TextColor(3);
+  Palette(0);
+  GraphBackground(1);
+  GotoXY(8, 10);
+  Write('SOCHER HAYAM - PORT BUILD');
+  GotoXY(8, 12);
+  Write('Custom POC screen.');
+  GotoXY(8, 15);
+  Write('Press Enter to continue...');
+  WaitForKey;
+end;
+
+{ POC: settings screen for the port build. Lets the player toggle two mechanics. }
+procedure ShowSettingsScreen;
+begin
+  GraphColorMode;
+  TextColor(3);
+  Palette(0);
+  GraphBackground(1);
+  GotoXY(14, 4);
+  Write('-- SETTINGS --');
+  GotoXY(4, 9);
+  Write('Allow crew strike? ');
+  AllowCrewStrike := InputYesNo;
+  GotoXY(4, 13);
+  Write('Allow shipyard closed? ');
+  AllowClosedShipyard := InputYesNo;
+end;
+
+begin
+  ShowCustomScreen;
   Init;
+  ShowSettingsScreen;
   repeat
   begin
     Day := 1;

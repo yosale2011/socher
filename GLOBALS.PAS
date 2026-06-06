@@ -1,4 +1,6 @@
 program Socher;
+{ Note: all Hebrew string literals are stored in reversed (visual) order so they render
+  correctly with the original right-to-left display routines }
 const
   Copper = 1;
   Olives = 2;
@@ -125,3 +127,6 @@ var
   PiratesSign: PSgnBuffer;
   ScoreSign: PSgnBuffer;
   MessageSign: PSgnBuffer;
+  { Port settings (not part of the original game) }
+  AllowCrewStrike: boolean;
+  AllowClosedShipyard: boolean;
