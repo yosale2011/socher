@@ -20,6 +20,7 @@ const
   Left = #75;
   Right = #77;
   F10 = #68;
+  MaxSafeInteger = 32767;
 type
   TCountryName = string[10];
   TWinBuffer = array[1..8832] of byte;
@@ -130,3 +131,4 @@ var
   { Port settings (not part of the original game) }
   AllowCrewStrike: boolean;
   AllowClosedShipyard: boolean;
+  FixedGuardShipPrice: boolean;

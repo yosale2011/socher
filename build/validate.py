@@ -11,7 +11,7 @@ EXPECTED_LENGTH = 52098
 EXPECTED_DIGEST = b'u7jY7LtrSWycOjwiEC0DuqM+r+Ju8fFNkF6GORijpWk='
 
 if len(sys.argv) > 1:
-    file_name = sys.argv[1]
+    file_name = Path(sys.argv[1])
 else:
     for path in os.listdir(Path(__file__).parent):
         if path.lower() == "k.com":

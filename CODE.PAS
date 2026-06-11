@@ -590,7 +590,7 @@ var
         ShowMessage('N','?תתל ןכומ התא' + WareName[Copper] + 'ןוט המכ', '', '');
         GotoXY(20, 16);
         repeat
-          OfferedCopper := Trunc(InputReal(0, 0, 8));
+          OfferedCopper := Trunc(InputReal(0, MaxSafeInteger, 5));
         until OfferedCopper >= 0;
       end
       until (OfferedCopper >= 0) and CanAffordWare(OfferedCopper, InOutCopper);
@@ -602,7 +602,7 @@ var
         ShowMessage('N','?תתל ןכומ התא' + WareName[Olives] + 'ןוט המכ', '', '');
         GotoXY(20, 16);
         repeat
-          OfferedOlives := Trunc(InputReal(0, 0, 8));
+          OfferedOlives := Trunc(InputReal(0, MaxSafeInteger, 5));
         until OfferedOlives >= 0;
       end
       until CanAffordWare(OfferedOlives, InOutOlives);
@@ -614,7 +614,7 @@ var
         ShowMessage('N', '?תתל ןכומ התא' + WareName[Wheat] + 'ןוט המכ', '', '');
         GotoXY(20, 16);
         repeat
-          OfferedWheat := Trunc(InputReal(0, 0, 8));
+          OfferedWheat := Trunc(InputReal(0, MaxSafeInteger, 5));
         until OfferedWheat >= 0;
       end
       until CanAffordWare(OfferedWheat, InOutWheat);
@@ -626,7 +626,7 @@ var
         ShowMessage('N', '?תתל ןכומ התא ףסכ המכ', '', '');
         GotoXY(20, 16);
         repeat
-          OfferedMoney := Trunc(InputReal(0, 0, 8));
+          OfferedMoney := InputReal(0, 0, 8);
         until OfferedMoney >= 0;
       end
       until CanAffordMoney(OfferedMoney, InOutMoney);
@@ -1277,9 +1277,12 @@ var
           begin
             PutPic(BuySign^, 22, 138);
             GotoXY(6, 15);
-            Write(Trunc(Money / ChosenWarePrice));
+            if Money / ChosenWarePrice > MaxSafeInteger then
+              Write(MaxSafeInteger)
+            else
+              Write(Trunc(Money / ChosenWarePrice));
             GotoXY(6, 17);
-            AmountToBuy := InputReal(0, 0, 8);
+            AmountToBuy := InputReal(0, MaxSafeInteger, 5);
             TotalCost := 1.0 * AmountToBuy * ChosenWarePrice;
           end
           until not CannotAfford(TotalCost);
@@ -1355,7 +1358,7 @@ var
           begin
             PutPic(SellSign^, 120, 60);
             GotoXY(21, 7);
-            AmountToSell := InputReal(0, 0, 8);
+            AmountToSell := InputReal(0, MaxSafeInteger, 5);
           end
           until not HasInsufficientCargo(AmountToSell, ChosenWare);
         end
@@ -1976,12 +1979,17 @@ var
         PriceString: TNumberString;
       begin
         PutPic(GuardsWindow^, 0, 142);
-        GuardShipPrice := 5 * Trunc((GetTotalCargoValue + Money) / (200 + Random(100)));
-        if GuardShipPrice < 75 then
-          GuardShipPrice := 75;
-        if RiskArg > 0 then
-          GuardShipPrice := GuardShipPrice + GuardShipPrice / 3;
-        GuardShipPrice := 5 * Int(GuardShipPrice / 5);
+        if FixedGuardShipPrice then
+          GuardShipPrice := 75
+        else
+        begin
+          GuardShipPrice := 5 * Trunc((GetTotalCargoValue + Money) / (200 + Random(100)));
+          if GuardShipPrice < 75 then
+            GuardShipPrice := 75;
+          if RiskArg > 0 then
+            GuardShipPrice := GuardShipPrice + GuardShipPrice / 3;
+          GuardShipPrice := 5 * Int(GuardShipPrice / 5);
+        end;
         Str(GuardShipPrice:1:0, PriceString);
         GotoXY(1, 15);
         Line3 := '? הצור התא תוניפס המכ';
@@ -2005,7 +2013,7 @@ var
             GotoXY(4, 17);
             Write('':4);
             GotoXY(4, 17);
-            GuardShipCount := Trunc(InputReal(0, 0, 3));
+            GuardShipCount := Trunc(InputReal(0, 999, 3));
           end
           until not CannotAfford(1.0 * GuardShipPrice * GuardShipCount);
         end
@@ -2173,7 +2181,7 @@ var
       GotoXY(21, 17);
       Write(OutShipDamage:4:0);
       GotoXY(5, 17);
-      DamageToRepair := Trunc(InputReal(0, 0, 5));
+      DamageToRepair := Trunc(InputReal(0, MaxSafeInteger, 5));
     end
     until not CannotAfford(DamageToRepair);
     if DamageToRepair >= 0 then
@@ -2456,7 +2464,7 @@ begin
   { Original bug: the random ClosedBankDay set above is immediately overwritten with 0,
     so the bank's "closed day" mechanic never triggers (ClosedRepairDay still works) }
   ClosedBankDay := 0;
-  Money := 5000;
+  Money := 10000;
   LastDayStartEvent := 0;
   WaitForKey;
 end;
@@ -2616,6 +2624,9 @@ begin
   GotoXY(4, 13);
   Write('Allow shipyard closed? ');
   AllowClosedShipyard := InputYesNo;
+  GotoXY(4, 17);
+  Write('Fixed guard ship price? ');
+  FixedGuardShipPrice := InputYesNo;
 end;
 
 begin
