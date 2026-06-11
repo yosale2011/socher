@@ -132,3 +132,12 @@ var
   AllowCrewStrike: boolean;
   AllowClosedShipyard: boolean;
   FixedGuardShipPrice: boolean;
+  AllowClosedPorts: boolean;
+  BankInterest: boolean;
+  AllowNavigationError: boolean;
+  { Quick-amount keys for InputReal, active only while a caller arms them (> 0):
+    A (or '*') = everything, B = up to remaining ship capacity,
+    C = everything minus a cash reserve for guard ships }
+  QuickAmountA: real;
+  QuickAmountB: real;
+  QuickAmountC: real;

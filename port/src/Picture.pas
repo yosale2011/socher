@@ -1,5 +1,20 @@
 unit Picture;
 
+{ TP3 GetPic/PutPic buffer format (CGA 320x200x4), shared by the
+  in-memory game buffers and the on-disk .SCR/.WIN/.SGN/.LIN assets:
+
+    word marker (= 2 in every original asset),
+    word width, word height,
+    then height scanlines of ceil(width/4) bytes, 4 pixels/byte
+    (2 bits each, MSB pair = leftmost pixel), stored BOTTOM-UP --
+    which is why PutPic's Y argument is the bottom row.
+
+  Files are padded to 128-byte blocks (TP3 BlockRead); the padding is
+  ignored.  EncodePictureBuffer writes exactly 6 + ceil(W/4)*H bytes
+  into the caller's buffer with no bounds information available, so the
+  game's declared array sizes must cover every GetPic rect (audited:
+  largest full-screen rect needs 16006 of TScrBuffer's 16128 bytes). }
+
 {$mode objfpc}{$H+}
 
 interface
@@ -50,6 +65,7 @@ function LoadFileBytes(const Path: string): TBytes;
 var
   Stream: TFileStream;
 begin
+  Result := nil;
   Stream := TFileStream.Create(Path, fmOpenRead or fmShareDenyWrite);
   try
     SetLength(Result, Stream.Size);
@@ -90,7 +106,7 @@ var
   ByteX: Integer;
   BitPair: Integer;
   TargetX: Integer;
-  Packed: Byte;
+  PackedByte: Byte;
   Shift: Integer;
 begin
   if Length(Data) < 6 then
@@ -116,7 +132,7 @@ begin
     DestY := Result.Height - 1 - SourceY;
     for ByteX := 0 to BytesPerScanline - 1 do
     begin
-      Packed := Data[6 + SourceY * BytesPerScanline + ByteX];
+      PackedByte := Data[6 + SourceY * BytesPerScanline + ByteX];
       for BitPair := 0 to 3 do
       begin
         TargetX := ByteX * 4 + BitPair;
@@ -124,7 +140,7 @@ begin
         begin
           Shift := 6 - BitPair * 2;
           Result.Pixels[DestY * Result.Width + TargetX] :=
-            (Packed shr Shift) and $03;
+            (PackedByte shr Shift) and $03;
         end;
       end;
     end;
@@ -159,7 +175,7 @@ var
   ByteX: Integer;
   BitPair: Integer;
   SourceX: Integer;
-  Packed: Byte;
+  PackedByte: Byte;
   Pixel: Byte;
 begin
   Dest := @Buffer;
@@ -176,7 +192,7 @@ begin
     SourceY := Picture.Height - 1 - StoredY;
     for ByteX := 0 to BytesPerScanline - 1 do
     begin
-      Packed := 0;
+      PackedByte := 0;
       for BitPair := 0 to 3 do
       begin
         SourceX := ByteX * 4 + BitPair;
@@ -184,9 +200,9 @@ begin
           Pixel := Picture.Pixels[SourceY * Picture.Width + SourceX] and $03
         else
           Pixel := 0;
-        Packed := Packed or (Pixel shl (6 - BitPair * 2));
+        PackedByte := PackedByte or (Pixel shl (6 - BitPair * 2));
       end;
-      Dest^[6 + StoredY * BytesPerScanline + ByteX] := Packed;
+      Dest^[6 + StoredY * BytesPerScanline + ByteX] := PackedByte;
     end;
   end;
 end;
@@ -255,8 +271,11 @@ var
 begin
   Stream := TFileStream.Create(Path, fmCreate);
   try
-    Header := 'P6' + LineEnding + IntToStr(FrameBuffer.Width) + ' ' +
-      IntToStr(FrameBuffer.Height) + LineEnding + '255' + LineEnding;
+    { Always use a single LF: on Windows LineEnding is CRLF, and PPM readers
+      consume exactly one whitespace byte after the maxval, which would shift
+      every pixel by one byte. }
+    Header := 'P6'#10 + IntToStr(FrameBuffer.Width) + ' ' +
+      IntToStr(FrameBuffer.Height) + #10'255'#10;
     Stream.WriteBuffer(Header[1], Length(Header));
     for I := 0 to High(FrameBuffer.Pixels) do
     begin

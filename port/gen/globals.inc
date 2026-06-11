@@ -1,0 +1,143 @@
+{ GENERATED FILE - do not edit. Produced by port/tools/transpile.py from GLOBALS.PAS. }
+{ Note: all Hebrew string literals are stored in reversed (visual) order so they render
+  correctly with the original right-to-left display routines }
+const
+  Copper = 1;
+  Olives = 2;
+  Wheat = 3;
+  Turkey = 1;
+  Israel = 2;
+  Egypt = 3;
+  TurkeyName = '„‰‹˜…š';
+  IsraelName = 'Œ€˜™‰';
+  EgyptName = '‰˜–Ž';
+  Escape = #27;
+  Enter = #13;
+  Backspace = #8;
+  Bell = #7;
+  Up = #72;
+  Down = #80;
+  Left = #75;
+  Right = #77;
+  F10 = #68;
+  MaxSafeInteger = 32767;
+type
+  TCountryName = string[10];
+  TWinBuffer = array[1..8832] of byte;
+  PWinBuffer = ^TWinBuffer;
+  TScrBuffer = array[1..16128] of byte;
+  PScrBuffer = ^TScrBuffer;
+  TRepairOptionBuffer = array[1..384] of byte;
+  TSgnBuffer = array[1..2176] of byte;
+  PSgnBuffer = ^TSgnBuffer;
+  TMessageLine = string[35];
+  TPath = string[30];
+  TMoneyString = string[15];
+  TRect = record
+    X1: integer;
+    Y1: integer;
+    X2: integer;
+    Y2: integer;
+  end;
+  TRectArray = array[1..10] of TRect;
+  TNumberString = string[7];
+var
+  ExtraFilesPath: string[20];
+  Iter: integer;
+  CountryIter: integer;
+  Unused: array[1..8] of byte;
+  CurrentCountryName: TCountryName;
+  TravelStart: TCountryName;
+  TravelDestination: TCountryName;
+  StormCountryName: TCountryName;
+  ShipCapacity: integer;
+  Day: integer;
+  TimeOfDay: byte;
+  Unused2: byte;
+  ShipDamage: real;
+  Money: real;
+  BankBalance: real;
+  ClosedBankDay: integer;
+  { 0 - Normal, 2 - Night, 3 - Storm, 4 - Night & Storm }
+  Risk: integer;
+  LastDayStartEvent: integer;
+  LastPressedKey: char;
+  Unused3: byte;
+  HadTravelEvent: boolean;
+  ClosedRepairDay: integer;
+  Unused4: array[1..4] of byte;
+  BaseWarePrice: array[Copper..Wheat] of integer;
+  WareName: array[Copper..Wheat] of string[9];
+  Cargo: array[Copper..Wheat] of integer;
+  DayName: array[1..7] of string[5];
+  { MapWaypoints[i, j] contains the coordinate index of the waypoint between the i coordinate
+    and the j coordinate, or 0 if there is no waypoint between them }
+  MapWaypoints: array[1..8, 1..8] of byte;
+  { Coordinates in the map, where 1-3 are the countries, and the rest are waypoints between them }
+  MapCoordinates: array[1..8] of record
+    X: integer;
+    Y: integer;
+  end;
+  PreMessageBackground: array[1..1764] of byte;
+  MainMenuPic: PWinBuffer;
+  MapWindow: PWinBuffer;
+  StayWindow: PWinBuffer;
+  ShoalWindow: PWinBuffer;
+  ChangeWindow: PWinBuffer;
+  StrikeWindow: PWinBuffer;
+  FogWindow: PWinBuffer;
+  BankWindow: PWinBuffer;
+  BuyIsraelWindow: PWinBuffer;
+  BuyTurkeyWindow: PWinBuffer;
+  BuyEgyptWindow: PWinBuffer;
+  SellIsraelWindow: PWinBuffer;
+  SellTurkeyWindow: PWinBuffer;
+  SellEgyptWindow: PWinBuffer;
+  PiratesWindow: PWinBuffer;
+  ConfrontWindow: PWinBuffer;
+  RunAwayWindow: PWinBuffer;
+  OfferWindow: PWinBuffer;
+  SinkingWindow: PWinBuffer;
+  StormWindow: PWinBuffer;
+  DamagedWindow: PWinBuffer;
+  RepairWindow: PWinBuffer;
+  NightWindow: PWinBuffer;
+  OverweightWindow: PWinBuffer;
+  GuardsWindow: PWinBuffer;
+  DesertedWindow: PWinBuffer;
+  Unused5: ^integer;
+  NewDayScreen: PScrBuffer;
+  SocherScreen: PScrBuffer;
+  ExpandScreen: PScrBuffer;
+  ThievesScreen: PScrBuffer;
+  CrewScreen: PScrBuffer;
+  WheatUpScreen: PScrBuffer;
+  WheatDownScreen: PScrBuffer;
+  OlivesUpScreen: PScrBuffer;
+  OlivesDownScreen: PScrBuffer;
+  CopperUpScreen: PScrBuffer;
+  CopperDownScreen: PScrBuffer;
+  Unused6: ^integer;
+  MainScreen: PScrBuffer;
+  HelpScreen: PScrBuffer;
+  RepairOptionPic: ^TRepairOptionBuffer;
+  BuySign: PSgnBuffer;
+  SellSign: PSgnBuffer;
+  WithdrawSign: PSgnBuffer;
+  DepositSign: PSgnBuffer;
+  PiratesSign: PSgnBuffer;
+  ScoreSign: PSgnBuffer;
+  MessageSign: PSgnBuffer;
+  { Port settings (not part of the original game) }
+  AllowCrewStrike: boolean;
+  AllowClosedShipyard: boolean;
+  FixedGuardShipPrice: boolean;
+  AllowClosedPorts: boolean;
+  BankInterest: boolean;
+  AllowNavigationError: boolean;
+  { Quick-amount keys for InputReal, active only while a caller arms them (> 0):
+    A (or '*') = everything, B = up to remaining ship capacity,
+    C = everything minus a cash reserve for guard ships }
+  QuickAmountA: real;
+  QuickAmountB: real;
+  QuickAmountC: real;

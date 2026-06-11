@@ -3,7 +3,7 @@ program SmokePlatform;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, Platform;
+  Classes, SysUtils, Platform;
 
 type
   TScrBuffer = array[1..16128] of Byte;

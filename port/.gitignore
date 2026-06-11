@@ -1,3 +1,8 @@
 *.png
 *.bmp
 *.ppm
+bin/
+tests/out*/
+*.o
+*.ppu
+*.exe

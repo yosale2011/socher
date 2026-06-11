@@ -34,9 +34,14 @@ uses
   Classes, SysUtils;
 
 const
+  { FONTHE8.COM is the original DOS font TSR.  Its 8x8 glyph table (256
+    glyphs x 8 bytes, MSB = leftmost pixel) sits at this fixed byte
+    offset inside the .COM image; bytes 0..603 are loader code. }
   Fonthe8Offset = 604;
   CellWidth = 8;
   CellHeight = 8;
+  GridColumns = 40;
+  GridRows = 25;
 
 procedure LoadFont8x8(var Font: TFont8x8; const FontPath: string);
 var
@@ -71,6 +76,13 @@ end;
 
 procedure GotoXY(var Grid: TTextGrid; X, Y: Integer);
 begin
+  { CGA BIOS graphics-mode cursor addressing: a column past the 40-column
+    grid wraps around within the SAME row.  The original game relies on
+    this - it calls GotoXY(73,1), GotoXY(53,16) and GotoXY(45,16)
+    expecting columns 33, 13 and 5 (verified against the DOS reference
+    screenshot: the HUD country name sits at row 1, columns 33-38). }
+  if X > GridColumns then
+    X := ((X - 1) mod GridColumns) + 1;
   Grid.CursorX := X;
   Grid.CursorY := Y;
 end;
@@ -135,16 +147,25 @@ begin
   if B1 < $80 then
     Exit(B1);
 
+  { Convenience: accept UTF-8 encoded Hebrew letters (lead byte $D7) from
+    repo-source string literals and map them to CP862. }
   if (B1 = $D7) and (Index <= Length(Text)) then
   begin
     B2 := Ord(Text[Index]);
-    Inc(Index);
-    CodePoint := ((B1 and $1F) shl 6) or (B2 and $3F);
-    if HebrewCodePointToCp862(CodePoint, Result) then
-      Exit;
+    if (B2 and $C0) = $80 then
+    begin
+      CodePoint := ((B1 and $1F) shl 6) or (B2 and $3F);
+      if HebrewCodePointToCp862(CodePoint, Result) then
+      begin
+        Inc(Index);
+        Exit;
+      end;
+    end;
   end;
 
-  Result := Ord('?');
+  { Otherwise the byte is already CP862: render it directly as a glyph
+    index, in stored order, without any bidi reordering. }
+  Result := B1;
 end;
 
 procedure DrawGlyph(var FrameBuffer: TFrameBuffer; const Grid: TTextGrid;
@@ -192,10 +213,12 @@ begin
     Code := NextCp862Code(Text, Index);
     DrawGlyph(FrameBuffer, Grid, Grid.CursorX, Grid.CursorY, Code);
     Inc(Grid.CursorX);
-    if Grid.CursorX > 80 then
+    if Grid.CursorX > GridColumns then
     begin
       Grid.CursorX := 1;
       Inc(Grid.CursorY);
+      if Grid.CursorY > GridRows then
+        Grid.CursorY := GridRows;
     end;
   end;
 end;

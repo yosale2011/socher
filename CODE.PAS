@@ -373,6 +373,32 @@ begin
           CurrentNumber := -1;
           ShouldReturn := True;
         end;
+        { Port upgrade: quick-amount keys, active only when the caller armed them.
+          The Hebrew letters are what the a/b/c keys produce on a Hebrew layout }
+        '=', 'a', 'A', 'ש': begin
+          if QuickAmountA > 0 then
+          begin
+            CurrentNumber := QuickAmountA;
+            Write(CurrentNumber:1:0);
+            ShouldReturn := True;
+          end;
+        end;
+        'b', 'B', 'נ': begin
+          if QuickAmountB > 0 then
+          begin
+            CurrentNumber := QuickAmountB;
+            Write(CurrentNumber:1:0);
+            ShouldReturn := True;
+          end;
+        end;
+        'c', 'C', 'ב': begin
+          if QuickAmountC > 0 then
+          begin
+            CurrentNumber := QuickAmountC;
+            Write(CurrentNumber:1:0);
+            ShouldReturn := True;
+          end;
+        end;
       end;
       if DigitCount = MaxDigits then
       begin
@@ -1281,8 +1307,32 @@ var
               Write(MaxSafeInteger)
             else
               Write(Trunc(Money / ChosenWarePrice));
+            { Port upgrade: quick-amount keys.
+              A = everything you can afford, B = only what still fits the ship,
+              C = everything while keeping a 10% (min 500) reserve for guard ships }
+            QuickAmountA := Int(Money / ChosenWarePrice);
+            if QuickAmountA > MaxSafeInteger then
+              QuickAmountA := MaxSafeInteger;
+            QuickAmountB := ShipCapacity - GetTotalCargoWeight;
+            if QuickAmountB > QuickAmountA then
+              QuickAmountB := QuickAmountA;
+            if QuickAmountB < 0 then
+              QuickAmountB := 0;
+            QuickAmountC := Int(Money / 10);
+            if QuickAmountC < 500 then
+              QuickAmountC := 500;
+            QuickAmountC := Int((Money - QuickAmountC) / ChosenWarePrice);
+            if QuickAmountC > MaxSafeInteger then
+              QuickAmountC := MaxSafeInteger;
+            if QuickAmountC < 0 then
+              QuickAmountC := 0;
+            GotoXY(6, 18);
+            Write('רמשמ=C תלוביק=B לכה=A');
             GotoXY(6, 17);
             AmountToBuy := InputReal(0, MaxSafeInteger, 5);
+            QuickAmountA := 0;
+            QuickAmountB := 0;
+            QuickAmountC := 0;
             TotalCost := 1.0 * AmountToBuy * ChosenWarePrice;
           end
           until not CannotAfford(TotalCost);
@@ -1357,8 +1407,13 @@ var
           repeat
           begin
             PutPic(SellSign^, 120, 60);
+            { Port upgrade: '=' sells the whole stock of the chosen ware }
+            QuickAmountA := Cargo[ChosenWare];
+            GotoXY(20, 8);
+            Write('לכה = =');
             GotoXY(21, 7);
             AmountToSell := InputReal(0, MaxSafeInteger, 5);
+            QuickAmountA := 0;
           end
           until not HasInsufficientCargo(AmountToSell, ChosenWare);
         end
@@ -1414,8 +1469,13 @@ var
           repeat
           begin
             PutPic(DepositSign^, 11, 139);
+            { Port upgrade: '=' deposits everything }
+            QuickAmountA := Int(Money);
+            GotoXY(16, 17);
+            Write('לכה = =');
             GotoXY(5, 17);
             Amount := InputReal(0, 0, 8);
+            QuickAmountA := 0;
             if Amount <= 0 then
               DidFinishFlag := 1
             else if Amount <= Money then
@@ -1437,8 +1497,13 @@ var
           repeat
           begin
             PutPic(WithdrawSign^, 11, 139);
+            { Port upgrade: '=' withdraws everything }
+            QuickAmountA := Int(BankBalance);
+            GotoXY(16, 17);
+            Write('לכה = =');
             GotoXY(5, 17);
             Amount := InputReal(0, 0, 8);
+            QuickAmountA := 0;
             if Amount < 0 then
               DidFinishFlag := 1
             else if Amount <= BankBalance then
@@ -1875,7 +1940,7 @@ var
             end;
           end;
         end
-        else
+        else if AllowNavigationError then
           ChangeTravelDestination;
         HadTravelEvent := True;
       end;
@@ -1895,7 +1960,7 @@ var
       if (not HadTravelEvent) and
           (TimeOfDay + TravelDurationArg + TravelDurationArg div 2 <= 20) then
       begin
-        if Random(12) = 0 then
+        if AllowClosedPorts and (Random(12) = 0) then
         begin
           CurrentShipX := ShipX;
           CurrentShipY := ShipY;
@@ -1931,7 +1996,8 @@ var
             HadTravelEvent := True;
             PiratesFlow(GuardShipCount, CargoWeightArg);
           end;
-          7: ChangeTravelDestination;
+          7: if AllowNavigationError then
+            ChangeTravelDestination;
           9, 10: begin
             ShowMessage('W', '', 'ה ר צ ע נ   ה נ י פ ס ה', '');
             PutPic(DesertedWindow^, 0, 142);
@@ -2180,8 +2246,15 @@ var
       PutPic(RepairWindow^, 0, 142);
       GotoXY(21, 17);
       Write(OutShipDamage:4:0);
+      { Port upgrade: '=' repairs everything (the full damage, capped by cash) }
+      QuickAmountA := Int(OutShipDamage);
+      if QuickAmountA > Int(Money) then
+        QuickAmountA := Int(Money);
+      GotoXY(13, 18);
+      Write('לכה = =');
       GotoXY(5, 17);
       DamageToRepair := Trunc(InputReal(0, MaxSafeInteger, 5));
+      QuickAmountA := 0;
     end
     until not CannotAfford(DamageToRepair);
     if DamageToRepair >= 0 then
@@ -2222,6 +2295,14 @@ begin
   begin
     ShowMessage('W', '.ןורחאה רחסמה םוי והז', 'םויה ףוסב רוכמל רוכז', ',ךתרוחס לכ תא');
     ShowMessage('W', 'רובצתש תודוקנהש ןויכמ', 'םוכס יפ לע הנעבקת', '! ךדיב רתוויש ףסכה');
+  end;
+  { Port upgrade (toggleable): 10% interest on money deposited overnight,
+    whole shekels only - fractions are truncated, no coin fractions }
+  if BankInterest and (Day > 1) and (Int(BankBalance / 10) > 0) then
+  begin
+    ShowMessage('W', 'תיביר 10% ךל םליש קנבה', 'ח"ש ' + ToStrWithCommas(Int(BankBalance / 10)) + ' :תפסות',
+        'הלילה תדקפה לע');
+    BankBalance := BankBalance + Int(BankBalance / 10);
   end;
   UpdateStorm(StormCountryName);
   ShowStormScreen;
@@ -2609,24 +2690,177 @@ begin
   WaitForKey;
 end;
 
-{ POC: settings screen for the port build. Lets the player toggle two mechanics. }
-procedure ShowSettingsScreen;
+{ POC: load saved port settings from port.cfg (one digit per line, in the game
+  directory). A missing or invalid file falls back to original-game behavior. }
+procedure LoadPortSettings;
+var
+  CfgFile: text;
+  V1: integer;
+  V2: integer;
+  V3: integer;
+  V4: integer;
+  V5: integer;
+  V6: integer;
 begin
+  { Defaults = original game behavior }
+  AllowCrewStrike := True;
+  AllowClosedShipyard := True;
+  FixedGuardShipPrice := False;
+  AllowClosedPorts := True;
+  BankInterest := False;
+  AllowNavigationError := True;
+  Assign(CfgFile, 'port.cfg');
+  {$I-} Reset(CfgFile); {$I+}
+  if IOResult = 0 then
+  begin
+    {$I-}
+    Readln(CfgFile, V1);
+    Readln(CfgFile, V2);
+    Readln(CfgFile, V3);
+    Readln(CfgFile, V4);
+    Readln(CfgFile, V5);
+    Readln(CfgFile, V6);
+    {$I+}
+    if IOResult = 0 then
+    begin
+      AllowCrewStrike := V1 <> 0;
+      AllowClosedShipyard := V2 <> 0;
+      FixedGuardShipPrice := V3 <> 0;
+      AllowClosedPorts := V4 <> 0;
+      BankInterest := V5 <> 0;
+      AllowNavigationError := V6 <> 0;
+    end;
+    Close(CfgFile);
+  end;
+end;
+
+procedure SavePortSettings;
+var
+  CfgFile: text;
+begin
+  Assign(CfgFile, 'port.cfg');
+  {$I-}
+  Rewrite(CfgFile);
+  if IOResult = 0 then
+  begin
+    Writeln(CfgFile, Ord(AllowCrewStrike));
+    Writeln(CfgFile, Ord(AllowClosedShipyard));
+    Writeln(CfgFile, Ord(FixedGuardShipPrice));
+    Writeln(CfgFile, Ord(AllowClosedPorts));
+    Writeln(CfgFile, Ord(BankInterest));
+    Writeln(CfgFile, Ord(AllowNavigationError));
+    Close(CfgFile);
+  end;
+  {$I+}
+end;
+
+{ POC: visual settings menu for the port build. Arrows move the cursor,
+  Space or Enter toggles a mechanic on/off, Enter on START GAME (or Escape)
+  saves the choices to port.cfg and starts playing. }
+procedure ShowSettingsScreen;
+const
+  OptionCount = 6;
+var
+  Selected: integer;
+  PressedKey: char;
+  Values: array[1..OptionCount] of boolean;
+  Names: array[1..OptionCount] of string[30];
+  IsDone: boolean;
+  I: integer;
+
+  procedure DrawRow(Index: integer);
+  begin
+    GotoXY(4, 6 + 2 * Index);
+    if Index = Selected then
+      Write('>')
+    else
+      Write(' ');
+    if Index <= OptionCount then
+    begin
+      Write(' ');
+      if Values[Index] then
+        Write('[X] ')
+      else
+        Write('[ ] ');
+      Write(Names[Index]);
+    end
+    else
+      Write('   START GAME');
+  end;
+
+begin
+  LoadPortSettings;
+  Names[1] := 'Crew strike';
+  Names[2] := 'Shipyard closed days';
+  Names[3] := 'Ports closed (fog/strike)';
+  Names[4] := 'Fixed guard ship price';
+  Names[5] := 'Bank interest 10%/night';
+  Names[6] := 'Navigation errors (winds)';
+  Values[1] := AllowCrewStrike;
+  Values[2] := AllowClosedShipyard;
+  Values[3] := AllowClosedPorts;
+  Values[4] := FixedGuardShipPrice;
+  Values[5] := BankInterest;
+  Values[6] := AllowNavigationError;
   GraphColorMode;
   TextColor(3);
   Palette(0);
   GraphBackground(1);
-  GotoXY(14, 4);
-  Write('-- SETTINGS --');
-  GotoXY(4, 9);
-  Write('Allow crew strike? ');
-  AllowCrewStrike := InputYesNo;
-  GotoXY(4, 13);
-  Write('Allow shipyard closed? ');
-  AllowClosedShipyard := InputYesNo;
-  GotoXY(4, 17);
-  Write('Fixed guard ship price? ');
-  FixedGuardShipPrice := InputYesNo;
+  GotoXY(13, 3);
+  Write('--- SETTINGS ---');
+  GotoXY(3, 21);
+  Write('Arrows: move   Space: on/off');
+  GotoXY(3, 22);
+  Write('Enter on START GAME to play');
+  Selected := 1;
+  for I := 1 to OptionCount + 1 do
+    DrawRow(I);
+  IsDone := False;
+  repeat
+    PressedKey := GetPressedKey;
+    case PressedKey of
+      Up, Left: begin
+        I := Selected;
+        Selected := Selected - 1;
+        if Selected < 1 then
+          Selected := OptionCount + 1;
+        DrawRow(I);
+        DrawRow(Selected);
+      end;
+      Down, Right: begin
+        I := Selected;
+        Selected := Selected + 1;
+        if Selected > OptionCount + 1 then
+          Selected := 1;
+        DrawRow(I);
+        DrawRow(Selected);
+      end;
+      ' ': begin
+        if Selected <= OptionCount then
+        begin
+          Values[Selected] := not Values[Selected];
+          DrawRow(Selected);
+        end;
+      end;
+      Enter: begin
+        if Selected <= OptionCount then
+        begin
+          Values[Selected] := not Values[Selected];
+          DrawRow(Selected);
+        end
+        else
+          IsDone := True;
+      end;
+      Escape: IsDone := True;
+    end;
+  until IsDone;
+  AllowCrewStrike := Values[1];
+  AllowClosedShipyard := Values[2];
+  AllowClosedPorts := Values[3];
+  FixedGuardShipPrice := Values[4];
+  BankInterest := Values[5];
+  AllowNavigationError := Values[6];
+  SavePortSettings;
 end;
 
 begin

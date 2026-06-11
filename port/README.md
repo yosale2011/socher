@@ -3,6 +3,61 @@
 This directory is the modern port workspace. It is intentionally separate from
 the matching Turbo Pascal decompilation in the repository root.
 
+## Playing the 32-bit port
+
+`port\bin\socher.exe` is a native 32-bit Windows executable (Win32 GDI window,
+320x200 framebuffer scaled x3). No DOSBox, no runtime dependencies.
+
+Build (from the repository root):
+
+```powershell
+python port\tools\transpile.py
+& "C:\FPC\3.2.2\bin\i386-win32\fpc.exe" -B -Fuport\src -FEport\bin -FUport\bin port\src\socher.lpr
+```
+
+`transpile.py` regenerates `port\gen\globals.inc` / `code.inc` from the
+original `GLOBALS.PAS` / `CODE.PAS` (mechanical renames + documented port
+patches; never edit the `.inc` files by hand).
+
+Run:
+
+```powershell
+port\run_port.bat
+```
+
+(The launcher just starts the exe with the working directory set to `socher1`
+so the original `.scr`/`.win`/`.sgn`/`.lin` assets and `winners.win` are
+found.)
+
+Controls are the original ones: arrow keys / space move the menu highlight,
+Enter selects, Esc backs out, F10 opens the help screen. Yes/No prompts accept
+the Hebrew kaf/lamed keys or their Latin positions `f`/`k`.
+
+Environment variables (all optional):
+
+| Variable          | Effect |
+|-------------------|--------|
+| `SOCHER_SCALE`    | Window scale factor 1..10 (default 3). |
+| `SOCHER_SEED`     | Decimal RNG seed for deterministic runs. |
+| `SOCHER_KEYS`     | Path to a key-script file (one token per line: `ENTER`, `ESC`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `F10`, `SPACE`, `BACKSPACE`, `WAIT` = dump a frame, or a single literal character). Enables script mode: keys are fed from the file and the program exits 0 when the script ends (exit 2 if the file does not exist). |
+| `SOCHER_DUMP_DIR` | Directory that receives `frame-NNNN.ppm` framebuffer dumps on every key read (and on `WAIT`). |
+| `SOCHER_FONT`     | Explicit path to `FONTHE8.COM` if not running from the repo tree. |
+
+Scripted regression runs: `port\tests\round1\run_round1.ps1` replays six
+scenarios with a fixed seed and converts the dumped frames to PNG.
+
+Known gaps:
+
+- Sound is approximated with the Windows `Beep` API: tones only play during
+  `Delay` calls and the square-wave timbre differs from a real PC speaker.
+- `Random` is Free Pascal's generator, not TP3's LCG, so gameplay event
+  sequences do not match the DOS original run-for-run (use `SOCHER_SEED` for
+  reproducibility within the port).
+- Typing Hebrew directly requires a Hebrew (CP1255) ANSI system codepage; on
+  other systems use the Latin key positions, which the game itself maps to
+  Hebrew letters.
+- Window size is fixed at startup (`SOCHER_SCALE`); no fullscreen or resize.
+
 Current goals:
 
 - Keep the original decompilation as the behavioral baseline.
