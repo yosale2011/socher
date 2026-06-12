@@ -409,7 +409,10 @@ begin
       end;
     end
     until ShouldReturn;
-    if (not ((MinNumber = 0) and (MaxNumber = 0))) and
+    { Port fix: Escape returns -1 as a cancel signal and must bypass the
+      range check, otherwise prompts with a max (added by the port) trap
+      the player in the "enter a number between" loop }
+    if (CurrentNumber <> -1) and (not ((MinNumber = 0) and (MaxNumber = 0))) and
         (((CurrentNumber >= 0) and (CurrentNumber > MaxNumber)) or
         ((CurrentNumber <= 0) and (CurrentNumber < MinNumber))) then
     begin
@@ -2613,8 +2616,10 @@ begin
   {$I-} Reset(WinnersFile); {$I+}
   if IOResult <> 0 then
   begin
+    { Port fix: the original also called Close here, so the unconditional
+      Close below was a double-close - a latent I/O error 103 that never
+      triggered in DOS only because WINNERS.WIN always shipped with the game }
     Rewrite(WinnersFile);
-    Close(WinnersFile);
   end
   else
   begin

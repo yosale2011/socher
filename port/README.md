@@ -135,3 +135,20 @@ functions that will replace the original TP calls.
 - `Random` needs a TP-compatible wrapper for exact gameplay parity.
 - Hebrew strings are stored in visual reverse order and should be rendered as-is.
 - `Read(KBD, ch)` and special key codes need a DOS-compatible input adapter.
+
+## Single-file build
+
+`port\bin\SocherHayam.exe` is a fully self-contained build: all `.SCR`,
+`.WIN`, `.SGN`, `.LIN` assets and `FONTHE8.COM` are embedded in the exe.
+On startup it extracts them to `%LOCALAPPDATA%\SocherHayam` and runs from
+there; `winners.win` (high scores) and `port.cfg` (settings) live in that
+directory and persist between runs and versions. Copy the single exe
+anywhere - no other files are needed.
+
+To rebuild it:
+
+```powershell
+python port\tools\embed_assets.py
+fpc -FEport\bin -Fuport\src -Fuport\gen -Fiport\gen port\src\socher_single.lpr
+# output is socher_single.exe; rename to SocherHayam.exe when distributing
+```

@@ -447,6 +447,9 @@ begin
   Result := SysUtils.GetEnvironmentVariable('SOCHER_FONT');
   if (Result <> '') and FileExists(Result) then
     Exit;
+  { The single-exe build extracts all assets (font included) into the cwd }
+  if FileExists('FONTHE8.COM') then
+    Exit('FONTHE8.COM');
   if FileExists(Relative) then
     Exit(Relative);
   Base := ExtractFilePath(ParamStr(0));
