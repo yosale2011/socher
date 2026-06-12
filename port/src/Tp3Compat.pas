@@ -21,6 +21,10 @@ function DoubleToTp3GameReal(D: Double): Tp3GameReal;
 function Tp3GameRealToDouble(R: Tp3GameReal): Double;
 function Tp3Random(Range: Integer): Integer;
 procedure Tp3Randomize;
+{ RNG state snapshot/restore, used by the savegame for deterministic
+  resume: a reloaded day replays the same prices and events. }
+function Tp3GetSeed: LongInt;
+procedure Tp3SetSeed(Seed: LongInt);
 
 implementation
 
@@ -84,9 +88,32 @@ begin
   Tp3GameRealToDouble := D;
 end;
 
+var
+  { Own 32-bit LCG (Borland TP/Delphi constants) instead of FPC's
+    System.Random: FPC's Mersenne Twister hides its state (RandSeed is
+    only the initial seed and never advances), so a savegame could not
+    snapshot it. Here the entire generator state IS LcgSeed. }
+  LcgSeed: LongInt;
+
 function Tp3Random(Range: Integer): Integer;
 begin
-  Tp3Random := System.Random(Range);
+  {$Q-}{$R-}
+  LcgSeed := LcgSeed * 134775813 + 1;
+  {$Q+}
+  if Range <= 0 then
+    Tp3Random := 0
+  else
+    Tp3Random := Integer((QWord(LongWord(LcgSeed)) * LongWord(Range)) shr 32);
+end;
+
+function Tp3GetSeed: LongInt;
+begin
+  Tp3GetSeed := LcgSeed;
+end;
+
+procedure Tp3SetSeed(Seed: LongInt);
+begin
+  LcgSeed := Seed;
 end;
 
 procedure Tp3Randomize;
@@ -101,11 +128,11 @@ begin
     Val(SeedText, SeedValue, ErrPos);
     if ErrPos = 0 then
     begin
-      RandSeed := SeedValue;
+      LcgSeed := SeedValue;
       Exit;
     end;
   end;
-  Randomize;
+  LcgSeed := LongInt(GetTickCount64);
 end;
 
 end.

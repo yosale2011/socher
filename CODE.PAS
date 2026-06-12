@@ -485,6 +485,278 @@ begin
   InputYesNo := Ret;
 end;
 
+{ Port: savegame support. The game autosaves every morning (start of
+  PlayDay, before any of the day's randomness is consumed) into the
+  active slot (1..5, chosen on the slot-picker screen), and the settings
+  screen offers CONTINUE SAVED GAME. Mid-day state lives in PlayDay
+  locals, so the save point is always the morning of a day; saving the
+  RNG seed makes a resumed day replay identically. }
+function SlotFileName(Slot: integer): TPath;
+begin
+  SlotFileName := 'savegame' + Chr(Ord('0') + Slot) + '.dat';
+end;
+
+procedure SaveGameState;
+var
+  SaveFile: text;
+  StormIndex: integer;
+begin
+  if StormCountryName = ' ' then
+    StormIndex := 0
+  else
+    StormIndex := CountryNameToIndex(StormCountryName);
+  Assign(SaveFile, SlotFileName(CurrentSaveSlot));
+  {$I-}
+  Rewrite(SaveFile);
+  if IOResult = 0 then
+  begin
+    Writeln(SaveFile, 1);
+    Writeln(SaveFile, Day);
+    Writeln(SaveFile, Money);
+    Writeln(SaveFile, BankBalance);
+    Writeln(SaveFile, ShipCapacity);
+    Writeln(SaveFile, ShipDamage);
+    Writeln(SaveFile, Cargo[Copper]);
+    Writeln(SaveFile, Cargo[Olives]);
+    Writeln(SaveFile, Cargo[Wheat]);
+    Writeln(SaveFile, CountryNameToIndex(CurrentCountryName));
+    Writeln(SaveFile, StormIndex);
+    Writeln(SaveFile, ClosedRepairDay);
+    Writeln(SaveFile, ClosedBankDay);
+    Writeln(SaveFile, LastDayStartEvent);
+    Writeln(SaveFile, Tp3GetSeed);
+    Close(SaveFile);
+  end;
+  if IOResult <> 0 then ;
+  {$I+}
+end;
+
+{ Reads every line as a string and parses with Val, assigning globals only
+  after the whole file validated - a torn or corrupted file must leave the
+  game state untouched (and a failed numeric Readln proved crash-prone) }
+function LoadGameState: boolean;
+var
+  SaveFile: text;
+  Lines: array[1..15] of string[40];
+  IntVals: array[1..15] of longint;
+  RealVals: array[1..15] of real;
+  LineIndex: integer;
+  ErrPos: integer;
+  IsValid: boolean;
+begin
+  LoadGameState := False;
+  Assign(SaveFile, SlotFileName(CurrentSaveSlot));
+  {$I-} Reset(SaveFile); {$I+}
+  if IOResult <> 0 then
+    Exit;
+  IsValid := True;
+  {$I-}
+  for LineIndex := 1 to 15 do
+  begin
+    Lines[LineIndex] := '';
+    Readln(SaveFile, Lines[LineIndex]);
+  end;
+  if IOResult <> 0 then
+    IsValid := False;
+  Close(SaveFile);
+  if IOResult <> 0 then ;
+  {$I+}
+  if IsValid then
+    for LineIndex := 1 to 15 do
+    begin
+      { lines 3, 4 and 6 are reals (money, bank, damage); the rest are
+        integral, but parsing all through real-then-check keeps it simple }
+      Val(Lines[LineIndex], RealVals[LineIndex], ErrPos);
+      if ErrPos <> 0 then
+        IsValid := False
+      else
+        IntVals[LineIndex] := Trunc(RealVals[LineIndex]);
+    end;
+  if IsValid and (IntVals[1] = 1) and (IntVals[2] >= 1) and (IntVals[2] <= 7) and
+      (IntVals[10] >= 1) and (IntVals[10] <= 3) then
+  begin
+    Day := IntVals[2];
+    Money := RealVals[3];
+    BankBalance := RealVals[4];
+    ShipCapacity := IntVals[5];
+    ShipDamage := RealVals[6];
+    Cargo[Copper] := IntVals[7];
+    Cargo[Olives] := IntVals[8];
+    Cargo[Wheat] := IntVals[9];
+    CurrentCountryName := CountryIndexToName(IntVals[10]);
+    if (IntVals[11] >= 1) and (IntVals[11] <= 3) then
+      StormCountryName := CountryIndexToName(IntVals[11])
+    else
+      StormCountryName := ' ';
+    ClosedRepairDay := IntVals[12];
+    ClosedBankDay := IntVals[13];
+    LastDayStartEvent := IntVals[14];
+    Tp3SetSeed(IntVals[15]);
+    LoadGameState := True;
+  end;
+end;
+
+{ Reads just the header of a slot file; True when the slot holds a valid
+  save, returning its day and cash for the slot-picker display }
+function GetSlotSummary(Slot: integer; var OutDay: integer;
+    var OutMoney: real): boolean;
+var
+  SaveFile: text;
+  Lines: array[1..3] of string[40];
+  I: integer;
+  ErrPos: integer;
+  VersionVal: real;
+  DayVal: real;
+begin
+  GetSlotSummary := False;
+  Assign(SaveFile, SlotFileName(Slot));
+  {$I-} Reset(SaveFile); {$I+}
+  if IOResult <> 0 then
+    Exit;
+  {$I-}
+  for I := 1 to 3 do
+  begin
+    Lines[I] := '';
+    Readln(SaveFile, Lines[I]);
+  end;
+  if IOResult <> 0 then ;
+  Close(SaveFile);
+  if IOResult <> 0 then ;
+  {$I+}
+  Val(Lines[1], VersionVal, ErrPos);
+  if (ErrPos <> 0) or (VersionVal <> 1) then
+    Exit;
+  Val(Lines[2], DayVal, ErrPos);
+  if (ErrPos <> 0) or (DayVal < 1) or (DayVal > 7) then
+    Exit;
+  Val(Lines[3], OutMoney, ErrPos);
+  if ErrPos <> 0 then
+    Exit;
+  OutDay := Trunc(DayVal);
+  GetSlotSummary := True;
+end;
+
+function HasAnySavedGame: boolean;
+var
+  Slot: integer;
+  SummaryDay: integer;
+  SummaryMoney: real;
+begin
+  HasAnySavedGame := False;
+  for Slot := 1 to 5 do
+    if GetSlotSummary(Slot, SummaryDay, SummaryMoney) then
+      HasAnySavedGame := True;
+end;
+
+procedure DeleteSavedGame;
+var
+  SaveFile: text;
+begin
+  Assign(SaveFile, SlotFileName(CurrentSaveSlot));
+  {$I-}
+  Erase(SaveFile);
+  if IOResult <> 0 then ;
+  {$I+}
+end;
+
+{ Slot picker used both for continuing a save (ForContinue) and for
+  choosing where a new game lives. Returns 0 when backed out with Esc. }
+function ChooseSaveSlot(ForContinue: boolean): integer;
+const
+  SlotCount = 5;
+var
+  Selected: integer;
+  PressedKey: char;
+  SlotUsed: array[1..SlotCount] of boolean;
+  SlotDay: array[1..SlotCount] of integer;
+  SlotMoney: array[1..SlotCount] of real;
+  I: integer;
+  IsDone: boolean;
+
+  { Hebrew, right-aligned: each row is built as one visual-order string so
+    the leading word lands on a fixed right edge regardless of length }
+  procedure DrawSlotRow(Index: integer);
+  var
+    RowText: string[38];
+    DayString: string[3];
+  begin
+    if SlotUsed[Index] then
+    begin
+      Str(SlotDay[Index], DayString);
+      RowText := ToStrWithCommas(SlotMoney[Index]) + ' - ' + DayString +
+          ' םוי :' + Chr(Ord('0') + Index) + ' קחשמ';
+    end
+    else
+      RowText := 'קיר :' + Chr(Ord('0') + Index) + ' קחשמ';
+    GotoXY(37, 4 + 2 * Index);
+    if Index = Selected then
+      Write('<')
+    else
+      Write(' ');
+    GotoXY(35 - Length(RowText), 4 + 2 * Index);
+    Write(RowText);
+  end;
+
+begin
+  GraphColorMode;
+  TextColor(3);
+  Palette(0);
+  GraphBackground(1);
+  GotoXY(11, 3);
+  if ForContinue then
+    Write('-- רומש קחשמ ךשמה --')
+  else
+    Write('-- קחשמל םוקמ רחב --');
+  GotoXY(7, 21);
+  Write('הרזח = ESC   הריחב = '#17'───┘');
+  for I := 1 to SlotCount do
+    SlotUsed[I] := GetSlotSummary(I, SlotDay[I], SlotMoney[I]);
+  Selected := 1;
+  if ForContinue then
+    for I := SlotCount downto 1 do
+      if SlotUsed[I] then
+        Selected := I;
+  for I := 1 to SlotCount do
+    DrawSlotRow(I);
+  ChooseSaveSlot := 0;
+  IsDone := False;
+  repeat
+    PressedKey := GetPressedKey;
+    case PressedKey of
+      Up, Left: begin
+        I := Selected;
+        Selected := Selected - 1;
+        if Selected < 1 then
+          Selected := SlotCount;
+        DrawSlotRow(I);
+        DrawSlotRow(Selected);
+      end;
+      Down, Right: begin
+        I := Selected;
+        Selected := Selected + 1;
+        if Selected > SlotCount then
+          Selected := 1;
+        DrawSlotRow(I);
+        DrawSlotRow(Selected);
+      end;
+      Enter: begin
+        if ForContinue and not SlotUsed[Selected] then
+        begin
+          Sound(700);
+          Delay(50);
+          NoSound;
+        end
+        else
+        begin
+          ChooseSaveSlot := Selected;
+          IsDone := True;
+        end;
+      end;
+      Escape: IsDone := True;
+    end;
+  until IsDone;
+end;
+
 procedure PlayDay;
 var
   CopperPriceIsrael: integer;
@@ -505,6 +777,8 @@ var
   Unused: array[1..4] of byte;
 
   procedure ShowHUD;
+  var
+    CapacityString: string[5];
   begin
     GotoXY(73, 1);
     Write(CurrentCountryName:6);
@@ -572,9 +846,10 @@ var
       TextColor(3);
     end;
     { Port upgrade: show the ship's cargo capacity next to the inventory
-      title, so the player knows how much still fits }
-    GotoXY(31, 7);
-    Write(ShipCapacity:3);
+      title, so the player knows how much still fits. Pixel placement -
+      the title band sits between the 8-pixel text grid rows. }
+    Str(ShipCapacity:3, CapacityString);
+    PortTextAt(244, 50, CapacityString);
   end;
 
   { Unused }
@@ -1482,6 +1757,12 @@ var
   begin
     DidFinishFlag := 0;
     PutPic(BankWindow^, 0, 142);
+    { Port upgrade: advertise the overnight interest when it is enabled }
+    if BankInterest then
+    begin
+      GotoXY(4, 17);
+      Write('10% הליל תיביר');
+    end;
     BankOptionRects[Deposit].X1 := 97;
     BankOptionRects[Deposit].Y1 := 7;
     BankOptionRects[Deposit].X2 := 149;
@@ -2320,6 +2601,9 @@ const
   Stay = 5;
   Repair = 6;
 begin
+  { Port: morning autosave - must run before GenerateNewPrices so the
+    saved RNG seed replays this exact day on resume }
+  SaveGameState;
   GotoXY(1, 2);
   TimeOfDay := 8;
   ShouldSkipDay := False;
@@ -2429,6 +2713,15 @@ begin
             ShowRepairWindow(ShipDamage)
           else
             ShowMessage('W', 'רוגס למנב םינוקיתה ףיצר', 'ןיתמהל ץלאת - םויה', 'רחמ דע');
+        end;
+        { Port: Escape at the main menu offers a quit-to-desktop. The
+          morning autosave already exists, so resuming returns to this
+          day's morning (mid-day actions are intentionally not saved). }
+        -1: begin
+          ShowMessage('N', 'םויה רקובמ רומש קחשמה', '(ל/כ) ?קחשמהמ תאצל', '');
+          GotoXY(15, 17);
+          if InputYesNo then
+            Halt(0);
         end;
       end;
     end
@@ -2735,6 +3028,7 @@ end;
 procedure LoadPortSettings;
 var
   CfgFile: text;
+  OldSave: text;
   V1: integer;
   V2: integer;
   V3: integer;
@@ -2742,6 +3036,14 @@ var
   V5: integer;
   V6: integer;
 begin
+  CurrentSaveSlot := 1;
+  { Migrate the pre-slots single savegame to slot 1 (no-op if either the
+    old file is missing or slot 1 is already taken) }
+  Assign(OldSave, 'savegame.dat');
+  {$I-}
+  Rename(OldSave, 'savegame1.dat');
+  if IOResult <> 0 then ;
+  {$I+}
   { Defaults = original game behavior }
   AllowCrewStrike := True;
   AllowClosedShipyard := True;
@@ -2807,55 +3109,84 @@ var
   Names: array[1..OptionCount] of string[30];
   IsDone: boolean;
   I: integer;
+  SaveExists: boolean;
+  TotalRows: integer;
 
+  { RTL layout: cursor at the right edge, checkbox next, label extending
+    leftwards (right-aligned) }
   procedure DrawRow(Index: integer);
+  var
+    RowText: string[30];
   begin
-    GotoXY(4, 6 + 2 * Index);
+    GotoXY(37, 5 + 2 * Index);
     if Index = Selected then
-      Write('>')
+      Write('<')
     else
       Write(' ');
     if Index <= OptionCount then
     begin
-      Write(' ');
+      GotoXY(33, 5 + 2 * Index);
       if Values[Index] then
-        Write('[X] ')
+        Write('[X]')
       else
-        Write('[ ] ');
+        Write('[ ]');
+      GotoXY(31 - Length(Names[Index]), 5 + 2 * Index);
       Write(Names[Index]);
     end
     else
-      Write('   START GAME');
+    begin
+      if (Index = OptionCount + 1) and SaveExists then
+        RowText := 'רומש קחשמ ךשמה'
+      else
+        RowText := 'שדח קחשמ';
+      GotoXY(36 - Length(RowText), 5 + 2 * Index);
+      Write(RowText);
+    end;
+  end;
+
+  { Full redraw - also used when returning from the slot picker }
+  procedure DrawWholeScreen;
+  var
+    Row: integer;
+  begin
+    GraphColorMode;
+    TextColor(3);
+    Palette(0);
+    GraphBackground(1);
+    GotoXY(13, 3);
+    Write('--- תורדגה ---');
+    GotoXY(12, 23);
+    Write('יוניש :חוור   הזוזת :םיצח');
+    GotoXY(14, 24);
+    Write('תיטמוטוא תורמשנ תורדגהה');
+    for Row := 1 to TotalRows do
+      DrawRow(Row);
   end;
 
 begin
   LoadPortSettings;
-  Names[1] := 'Crew strike';
-  Names[2] := 'Shipyard closed days';
-  Names[3] := 'Ports closed (fog/strike)';
-  Names[4] := 'Fixed guard ship price';
-  Names[5] := 'Bank interest 10%/night';
-  Names[6] := 'Navigation errors (winds)';
+  ContinueSavedGame := False;
+  { Hebrew labels, stored in visual (reversed) order like the game's }
+  Names[1] := 'םיחלמ תתיבש';
+  Names[2] := 'הרוגס הנפסמ';
+  Names[3] := '(לפרע) םירוגס םילמנ';
+  Names[4] := 'עובק רמשמ תוניפס ריחמ';
+  Names[5] := 'הלילל 10% קנב תיביר';
+  Names[6] := '(תוחור) טווינ תויועט';
   Values[1] := AllowCrewStrike;
   Values[2] := AllowClosedShipyard;
   Values[3] := AllowClosedPorts;
   Values[4] := FixedGuardShipPrice;
   Values[5] := BankInterest;
   Values[6] := AllowNavigationError;
-  GraphColorMode;
-  TextColor(3);
-  Palette(0);
-  GraphBackground(1);
-  GotoXY(13, 3);
-  Write('--- SETTINGS ---');
-  GotoXY(3, 21);
-  Write('Arrows: move   Space: on/off');
-  GotoXY(3, 22);
-  Write('Enter on START GAME to play');
-  { Cursor starts on START GAME so a single Enter begins playing }
+  SaveExists := HasAnySavedGame;
+  TotalRows := OptionCount + 1;
+  if SaveExists then
+    TotalRows := OptionCount + 2;
+  { Cursor starts on CONTINUE (when a save exists) or START GAME, so a
+    single Enter resumes or begins playing }
   Selected := OptionCount + 1;
-  for I := 1 to OptionCount + 1 do
-    DrawRow(I);
+  DrawWholeScreen;
   IsDone := False;
   repeat
     PressedKey := GetPressedKey;
@@ -2864,14 +3195,14 @@ begin
         I := Selected;
         Selected := Selected - 1;
         if Selected < 1 then
-          Selected := OptionCount + 1;
+          Selected := TotalRows;
         DrawRow(I);
         DrawRow(Selected);
       end;
       Down, Right: begin
         I := Selected;
         Selected := Selected + 1;
-        if Selected > OptionCount + 1 then
+        if Selected > TotalRows then
           Selected := 1;
         DrawRow(I);
         DrawRow(Selected);
@@ -2890,9 +3221,34 @@ begin
           DrawRow(Selected);
         end
         else
-          IsDone := True;
+        begin
+          ContinueSavedGame := (Selected = OptionCount + 1) and SaveExists;
+          I := ChooseSaveSlot(ContinueSavedGame);
+          if I > 0 then
+          begin
+            CurrentSaveSlot := I;
+            IsDone := True;
+          end
+          else
+          begin
+            { Backed out of the picker - return to the settings menu }
+            ContinueSavedGame := False;
+            DrawWholeScreen;
+          end;
+        end;
       end;
-      Escape: IsDone := True;
+      Escape: begin
+        { Escape = start a new game; still goes through the slot picker }
+        ContinueSavedGame := False;
+        I := ChooseSaveSlot(False);
+        if I > 0 then
+        begin
+          CurrentSaveSlot := I;
+          IsDone := True;
+        end
+        else
+          DrawWholeScreen;
+      end;
     end;
   until IsDone;
   AllowCrewStrike := Values[1];
@@ -2911,7 +3267,17 @@ begin
   repeat
   begin
     Day := 1;
-    StartWeek;
+    { Port: resume a saved game (chosen on the settings screen) instead
+      of starting a fresh week. LoadGameState restores all globals and
+      the RNG seed; MapWindow is normally loaded by StartWeek, which the
+      resume path skips. }
+    if ContinueSavedGame and LoadGameState then
+    begin
+      ContinueSavedGame := False;
+      MapWindow := LoadWinFile('map');
+    end
+    else
+      StartWeek;
     repeat
     begin
       PlayDay;
@@ -2919,6 +3285,8 @@ begin
     end
     until Day > 7;
     HighScoreFlow(Money + BankBalance);
+    { Port: the finished week's autosave is no longer relevant }
+    DeleteSavedGame;
     GraphColorMode;
     GraphBackground(1);
     ShowMessage('N', 'ןינועמ התא םאה', '(ל/כ) ? ףסונ קחשמב', '');

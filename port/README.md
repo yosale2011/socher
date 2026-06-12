@@ -136,6 +136,17 @@ functions that will replace the original TP calls.
 - Hebrew strings are stored in visual reverse order and should be rendered as-is.
 - `Read(KBD, ch)` and special key codes need a DOS-compatible input adapter.
 
+## Saving and resuming
+
+The port autosaves every morning (start of each game day), including the
+RNG state so a resumed day replays identically (same prices and events).
+There are five save slots (`savegame1.dat`..`savegame5.dat` in the game
+directory); both START GAME and CONTINUE SAVED GAME go through a slot
+picker that shows each slot's day and cash. A pre-slots `savegame.dat`
+is migrated to slot 1 automatically. Escape at the main menu offers
+quit-to-desktop (resuming returns to that day's morning - mid-day actions
+are not saved). A slot is deleted automatically when its trading week ends.
+
 ## Single-file build
 
 `port\bin\SocherHayam.exe` is a fully self-contained build: all `.SCR`,

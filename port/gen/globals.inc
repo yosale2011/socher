@@ -135,6 +135,9 @@ var
   AllowClosedPorts: boolean;
   BankInterest: boolean;
   AllowNavigationError: boolean;
+  ContinueSavedGame: boolean;
+  { Active savegame slot (1..5); every autosave goes to this slot }
+  CurrentSaveSlot: integer;
   { Quick-amount keys for InputReal, active only while a caller arms them (> 0):
     A (or '*') = everything, B = up to remaining ship capacity,
     C = everything minus a cash reserve for guard ships }
