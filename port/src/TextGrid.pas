@@ -27,6 +27,8 @@ procedure WriteText(var Grid: TTextGrid; var FrameBuffer: TFrameBuffer;
   const Text: string);
 procedure WriteTextAt(var Grid: TTextGrid; var FrameBuffer: TFrameBuffer;
   X, Y: Integer; const Text: string);
+procedure WriteTextPixel(var Grid: TTextGrid; var FrameBuffer: TFrameBuffer;
+  XPix, YPix: Integer; const Text: string);
 
 implementation
 
@@ -168,20 +170,15 @@ begin
   Result := B1;
 end;
 
-procedure DrawGlyph(var FrameBuffer: TFrameBuffer; const Grid: TTextGrid;
-  CellX, CellY: Integer; Code: Byte);
+procedure DrawGlyphPixel(var FrameBuffer: TFrameBuffer; const Grid: TTextGrid;
+  PixelX, PixelY: Integer; Code: Byte);
 var
-  PixelX: Integer;
-  PixelY: Integer;
   Row: Integer;
   Bit: Integer;
   Bits: Byte;
   DestX: Integer;
   DestY: Integer;
 begin
-  PixelX := (CellX - 1) * CellWidth;
-  PixelY := (CellY - 1) * CellHeight;
-
   for Row := 0 to 7 do
   begin
     Bits := Grid.Font[Code, Row];
@@ -198,6 +195,30 @@ begin
       else
         FrameBuffer.Pixels[DestY * FrameBuffer.Width + DestX] := Grid.Background;
     end;
+  end;
+end;
+
+procedure DrawGlyph(var FrameBuffer: TFrameBuffer; const Grid: TTextGrid;
+  CellX, CellY: Integer; Code: Byte);
+begin
+  DrawGlyphPixel(FrameBuffer, Grid, (CellX - 1) * CellWidth,
+    (CellY - 1) * CellHeight, Code);
+end;
+
+{ Free pixel placement for HUD overlays that must line up with bitmap
+  captions sitting between the 8-pixel grid rows. }
+procedure WriteTextPixel(var Grid: TTextGrid; var FrameBuffer: TFrameBuffer;
+  XPix, YPix: Integer; const Text: string);
+var
+  Index: Integer;
+  Code: Byte;
+begin
+  Index := 1;
+  while Index <= Length(Text) do
+  begin
+    Code := NextCp862Code(Text, Index);
+    DrawGlyphPixel(FrameBuffer, Grid, XPix, YPix, Code);
+    Inc(XPix, CellWidth);
   end;
 end;
 

@@ -522,8 +522,17 @@ var
     if Money >= 100000.0 then
       PortGotoXY(32, 17);
     Write(ToStrWithCommas(Money):5);
+    { Port fix: the original cleared stale digits only for wheat (below)
+      and money (above); copper and olives kept leftover digits whenever
+      the cargo count shrank to fewer digits. Clear widths are per-row:
+      the bitmap labels start at column 35 (copper, 6 letters) and 36
+      (olives, 5 letters), so wider clears would erase the labels }
+    PortGotoXY(32, 9);
+    Write(' ':3);
     PortGotoXY(32, 9);
     Write(Cargo[Copper]:3);
+    PortGotoXY(32, 11);
+    Write(' ':4);
     PortGotoXY(32, 11);
     Write(Cargo[Olives]:3);
     PortGotoXY(32, 13);
@@ -548,6 +557,25 @@ var
     Write(OlivesPriceEgypt:4);
     PortGotoXY(2, 25);
     Write(WheatPriceEgypt:4);
+    { Port upgrade: storm badge over the stormy country's panel caption,
+      so the player can see the hazard before choosing a destination.
+      Drawn at pixel positions (PortTextAt platform extension) because the
+      bitmap captions sit between the 8-pixel text grid rows. }
+    if StormCountryName <> ' ' then
+    begin
+      PortTextColor(2);
+      if StormCountryName = EgyptName then
+        PortTextAt(4, 147, 'Ñòíë')
+      else if StormCountryName = IsraelName then
+        PortTextAt(111, 147, 'Ñòíë')
+      else
+        PortTextAt(217, 147, 'Ñòíë');
+      PortTextColor(3);
+    end;
+    { Port upgrade: show the ship's cargo capacity next to the inventory
+      title, so the player knows how much still fits }
+    PortGotoXY(31, 7);
+    Write(ShipCapacity:3);
   end;
 
   { Unused }
@@ -2227,7 +2255,10 @@ var
 
   procedure ShowRepairWindow(var OutShipDamage: real);
   var
-    DamageToRepair: integer;
+    { Port fix: was a 16-bit integer, which both overflowed on Trunc and
+      forced a 32767 input cap - but ship damage is real and can far
+      exceed that (the damage formulas scale with the player's wealth) }
+    DamageToRepair: real;
     RemainingDamageString: string[10];
 
     function CannotAfford(LostAmount: real): boolean;
@@ -2257,7 +2288,7 @@ var
       PortGotoXY(13, 18);
       Write('åãÑ = =');
       PortGotoXY(5, 17);
-      DamageToRepair := Trunc(InputReal(0, MaxSafeInteger, 5));
+      DamageToRepair := InputReal(0, 0, 5);
       QuickAmountA := 0;
     end
     until not CannotAfford(DamageToRepair);
@@ -2679,20 +2710,24 @@ begin
   WaitForKey;
 end;
 
-{ POC: a custom screen added for the port build. Not part of the original game,
-  so it intentionally breaks the matching-binary validation. }
+{ Port welcome screen (not part of the original game).
+  Hebrew literals are in visual (reversed) order like the rest of the game. }
 procedure ShowCustomScreen;
 begin
   PortGraphColorMode;
   PortTextColor(3);
   PortPalette(0);
   PortGraphBackground(1);
-  PortGotoXY(8, 10);
-  Write('SOCHER HAYAM - PORT BUILD');
-  PortGotoXY(8, 12);
-  Write('Custom POC screen.');
-  PortGotoXY(8, 15);
-  Write('Press Enter to continue...');
+  PortGotoXY(9, 8);
+  Write('çâÑ òáÖëå çâÄÅÑ çâãÖòÅ');
+  PortGotoXY(14, 10);
+  Write('32 BIT öëòâÇ');
+  PortGotoXY(6, 13);
+  Write('ÑÅÖÑÄÑ öâëÖÉÑ ÑëòâÇÑ åí ëëÖÅé');
+  PortGotoXY(15, 15);
+  Write('Ñáâå ëê Äåô');
+  PortGotoXY(12, 19);
+  Write('äôéÑå  '#17'ƒƒƒŸ  ôóÑ');
   WaitForKey;
 end;
 
@@ -2818,7 +2853,8 @@ begin
   Write('Arrows: move   Space: on/off');
   PortGotoXY(3, 22);
   Write('Enter on START GAME to play');
-  Selected := 1;
+  { Cursor starts on START GAME so a single Enter begins playing }
+  Selected := OptionCount + 1;
   for I := 1 to OptionCount + 1 do
     DrawRow(I);
   IsDone := False;

@@ -32,6 +32,10 @@ procedure PortGetPic(var Buffer; X1, Y1, X2, Y2: Integer);
 
 procedure PortTextColor(Color: Integer);
 procedure PortGotoXY(X, Y: Integer);
+{ Platform extension (not in the TP3 contract): draws text at a free pixel
+  position, for HUD overlays that must align with bitmap captions sitting
+  between the 8-pixel text grid rows. }
+procedure PortTextAt(XPix, YPix: Integer; const Text: string);
 function PortWhereX: Integer;
 function PortWhereY: Integer;
 
@@ -581,6 +585,12 @@ procedure PortTextColor(Color: Integer);
 begin
   EnsureInitialized;
   Grid.Color := Color and $03;
+end;
+
+procedure PortTextAt(XPix, YPix: Integer; const Text: string);
+begin
+  EnsureInitialized;
+  TextGrid.WriteTextPixel(Grid, FrameBuffer, XPix, YPix, Text);
 end;
 
 procedure PortGotoXY(X, Y: Integer);
